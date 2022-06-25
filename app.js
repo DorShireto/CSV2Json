@@ -158,6 +158,15 @@ let app = express();
 
 
 async function main() {
+    //create /csvs directory incase it does not exist
+    if (!fs.existsSync(__dirname + "/csvs")) {
+        fs.mkdirSync(__dirname + "/csvs");
+    }
+    //create /jsons directory incase it does not exist
+    if (!fs.existsSync(__dirname + "/jsons")) {
+        fs.mkdirSync(__dirname + "/jsons");
+    }
+
     app.use(express.json()); // parse application/json
     app.use(cors()) // Cross-Origin Resource Sharing-
 
