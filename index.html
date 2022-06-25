@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <title>CSV to Json - Dor Shireto Demo</title>
+</head>
+
+<body>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+
+
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('file-input').click(); ">Add new
+        file</button>
+    <button onclick="deleteSelectedRows()" type="button" class="btn btn-danger"> Delete Selected Rows </button>
+    <button onclick="deleteAllRows()" type="button" class="btn btn-danger"> Delete All </button>
+    <input id="file-input" type="file" accept=".csv" name="name" style="display: none;" onchange="newFileIn()" />
+    <!-- Progress bar -->
+    <div>
+        <label for="progress-bar">0%</label>
+        <progress id="progress-bar" value="0" max="100"></progress>
+    </div>
+
+    <!-- Files table -->
+    <div class="container-lg">
+        <table id="filesTable" class="table table-collapsed table-striped table-responsive ">
+            <thead class="table-primary">
+                <th>Check</th>
+                <th>File in system</th>
+            </thead>
+        </table>
+    </div>
+
+
+
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const bar = document.getElementById('progress-bar')
+        var tableObj = document.getElementById('filesTable');
+        var rowsToDelete = []; // will be in use for deleteSelectedRows
+        var filesToDelete = []; // will be in use for deleteSelectedRows
+
+        /**
+         * Method will get called if "Delete Selected Rows" button will be triggered
+         * First method will check if there are any checked rows to be deleted
+         *      If no rows will be marked - using the check box
+         *          will display "No files were selected"
+         *      Else -  create list of all files need to be deleted
+         *              send list to server using /deleteFiles endpoint
+         *              Method will show to the user that server is deleting files,
+         *              When server will response - method will update table content   
+         *              and alert user that his files were deleted
+         * 
+        */
+        async function deleteSelectedRows() {
+            for (var i = 1; i < tableObj.rows.length; i++) { // loop over all table rows
+                var checkBox = tableObj.rows[i].cells[0].getElementsByTagName("input"); // get checkbox element
+                if (checkBox[0].checked) { // if checkbox is checked - store row info to be deleted
+                    rowsToDelete.push(i);
+                    filesToDelete.push(tableObj.rows[i].cells[1].innerHTML);
+                }
+            }
+            console.log(rowsToDelete);
+            console.log(filesToDelete);
+            if (filesToDelete.length > 0) { // there are rows to delete
+                bar.setAttribute('style', 'visibility: hidden;')
+                bar.previousElementSibling.textContent = `Deleting selected files`
+                // send request to server to delete marked files, data is list of files names.
+                var response = await axios.delete("http://localhost:5000/deleteFiles", {
+                    data: {
+                        filesToDelete: filesToDelete
+                    },
+                });
+                console.log(response);
+                alert(response.data); // alert user that his files were deleted successfully
+                for (var i = rowsToDelete.length - 1; i >= 0; i--) { // update table content - delete marked rows
+                    tableObj.deleteRow(rowsToDelete[i])
+                }
+                bar.previousElementSibling.textContent = `All selected files were deleted`
+            }
+            else { // no file were chose to delete - let user know
+                bar.setAttribute('style', 'visibility: hidden;')
+                bar.previousElementSibling.textContent = `No files were selected`
+            }
+
+            rowsToDelete = [];
+            filesToDelete = [];
+
+        }
+
+
+        /**
+         * Method will get called if "Delete All" button will be triggered
+         * First, method will check if there are any files to delete, by checking the number of rows in table
+         * If table have files:
+         *      send delete request to /deleteAllFiles endpoint
+         *      alert user that all files were deleted.
+         *      update table - delete all data rows in table
+         *      update message to user saying: All files were deleted...
+         * Else:
+         *      update message to user saying: No files to delete
+         * 
+        */
+        async function deleteAllRows() {
+            bar.setAttribute('style', 'visibility: hidden;')
+            if (tableObj.rows.length > 1) { // row 0 is the table head.
+                bar.previousElementSibling.textContent = `Deleting all files`
+                const response = await axios.delete("http://localhost:5000/deleteAllFiles");
+                console.log(response)
+                alert("All files were deleted");
+                for (var i = tableObj.rows.length - 1; i > 0; i--) { // reverse loop over table and delete rows
+                    tableObj.deleteRow(i)
+                }
+                bar.previousElementSibling.textContent = `All files were deleted from the server...`
+            }
+            else {
+                bar.previousElementSibling.textContent = `No files to delete`
+
+            }
+
+        }
+
+
+        /**
+         * Help method for newFileIn method
+         * Method will get row object and id
+         * Method inject checkbox input type object to the row at the first cell
+         * Method will set the id of the checkbox to be the giving id + cb postfix
+         * 
+        */
+        function addDeleteBTN(row, id) {
+            var cellInstruction = row.insertCell(0);
+            var checkBox = document.createElement('input');
+            checkBox.setAttribute('type', 'checkbox');
+            checkBox.setAttribute('id', id + 'cb');
+            cellInstruction.appendChild(checkBox);
+        }
+
+        /**
+         * Method will get called if new input was inserted after clicking "Add new file"
+         * First method will check if the type of the file was csv, if found different type will alert the user and abort the method.
+         * If not:
+         *          Method will add the in-coming file into FormData object with id name of "uploadCsv"
+         *          Method also in-charge of updating the upload progress bar
+         *          Method will send post request to /newFile/fileName endpoint
+         *          If response is 200 - file already exist:
+         *              Method will be checking if table content is valid and the file is in the table
+         *              If the file ins't showing in the table, it will be added.
+         *          If response is 201 - file was not exist and was added to the server
+         *              Method will update the table with new row - the file name
+         * Method will update the user that upload was completed.
+         * 
+        */
+        async function newFileIn() {
+            var fileFromUser = document.getElementById('file-input').files[0];
+            var type = fileFromUser.type;
+            if (!type.includes("csv")) {
+                alert("Sorry, we only support .csv files.")
+            }
+            else {
+                bar.setAttribute('style', 'visibility: visible;')
+
+                var formData = new FormData()
+                formData.append('uploadCsv', fileFromUser, fileFromUser.name)
+                console.log("formData", formData);
+                // setting configuration for post request
+                const config = {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                    onUploadProgress: (progressEvent) => {
+                        // handling progress - updating the progress bar
+                        var percentCompleted = (progressEvent.loaded / progressEvent.total) * 100;
+                        //updating progress bar value
+                        bar.setAttribute('value', percentCompleted);
+                        bar.previousElementSibling.textContent = `${percentCompleted.toFixed(3)}%`
+                        if (percentCompleted === 100) {
+                            bar.previousElementSibling.textContent = `Upload completed`
+                        }
+                    }
+                };
+                var response = await axios.post("http://localhost:5000/newFile/" + fileFromUser.name, formData, config);
+                if (response.status === 201) { // new file was added, add new line to table
+                    var rowLength = tableObj.rows.length;
+                    var newRow = tableObj.insertRow(rowLength);
+                    addDeleteBTN(newRow, response.data); // inject checkbox to cell
+                    var cell1 = newRow.insertCell(-1);
+                    cell1.innerHTML = response.data.replace('.json', ''); // update the text of cell 2 - the file name
+                }
+                else if (response.status === 200) { // file already exist in system, check if file in table
+                    var exist = false
+                    for (var i = 1; i < tableObj.rows.length; i++) { // loop over table - checking if file in tabke
+                        var fileName = tableObj.rows[i].cells[1];
+                        if (fileName.innerHTML === fileFromUser.name.replace('.csv', '')) { // file was found - no need to edit the table
+                            exist = true
+                        }
+                    }
+                    if (!exist) { // file was not found in table
+                        // create new row and inject to table
+                        var rowLength = tableObj.rows.length;
+                        var newRow = tableObj.insertRow(rowLength);
+                        var nameOfFileAsJson = fileFromUser.name.replace('.csv', '.json')
+                        addDeleteBTN(newRow, nameOfFileAsJson);
+                        var cell1 = newRow.insertCell(-1);
+                        cell1.innerHTML = nameOfFileAsJson.replace('.json', '');
+                    }
+                }
+                console.log(response);
+            }
+            document.getElementById('file-input').value = ""; // cleaning file input object. 
+        }
+    </script>
+</body>
+
+</html>
